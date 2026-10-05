@@ -2,15 +2,16 @@ import { and, desc, eq, getColumns, ilike, or, sql, SQL } from "drizzle-orm";
 import express from "express";
 import { departments, subjects } from "../db/schema";
 import { db } from "../db";
+import { parsePositiveInt } from "../lib/query";
 
 const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const { search, department, page = 1, limit = 10 } = req.query;
+    const { search, department, page, limit } = req.query;
 
-    const currentPage = Math.max(1, Number(page));
-    const limitPerPage = Math.max(1, Number(limit));
+    const currentPage = parsePositiveInt(page, 1, 10_000);
+    const limitPerPage = parsePositiveInt(limit, 10, 100);
     const offset = (currentPage - 1) * limitPerPage;
 
     const filterConditions: (SQL | undefined)[] = [];
@@ -49,7 +50,7 @@ router.get("/", async (req, res) => {
       .from(subjects)
       .innerJoin(departments, eq(subjects.departmentId, departments.id))
       .where(whereCause)
-      .orderBy(desc(subjects.createdAt))
+      .orderBy(desc(subjects.createdAt), desc(subjects.id))
       .limit(limitPerPage)
       .offset(offset);
 
