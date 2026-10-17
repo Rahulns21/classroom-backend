@@ -16,6 +16,8 @@ router.get("/", async (req, res) => {
 
     const filterConditions: (SQL | undefined)[] = [];
 
+    const { emailVerified, ...publicUserColumns } = getColumns(user);
+
     if (search) {
       filterConditions.push(
         or(ilike(user.name, `%${search}%`), ilike(user.email, `%${search}%`))
@@ -34,10 +36,10 @@ router.get("/", async (req, res) => {
       .from(user)
       .where(whereClause);
 
-    const totalCount = countResult[0]?.count ?? 0;
+    const totalCount = Number(countResult[0]?.count) ?? 0;
 
     const usersList = await db
-      .select({ ...getColumns(user) })
+      .select(publicUserColumns)
       .from(user)
       .where(whereClause)
       .orderBy(desc(user.createdAt))
