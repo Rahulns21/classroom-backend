@@ -4,7 +4,7 @@ import { classes, subjects, user } from "../db/schema";
 import { classSchema } from "../lib/schema";
 import { z } from "zod";
 import { randomBytes } from "node:crypto";
-import { parsePositiveInt } from "../lib/query";
+import { parsePositiveInt, parseString } from "../lib/query";
 import { and, desc, eq, getColumns, ilike, or, sql, SQL } from "drizzle-orm";
 
 const router = express.Router();
@@ -72,12 +72,24 @@ router.get("/", async (req, res) => {
       );
     }
 
-    if (subject) {
-      filterConditions.push(eq(classes.subjectId, Number(subject)));
+    const subjectId = parsePositiveInt(subject, 0);
+
+    if (subject !== undefined && subjectId === 0) {
+      return res.status(400).json({ error: "Invalid subject ID" });
     }
 
-    if (teacher) {
-      filterConditions.push(eq(classes.teacherId, String(teacher)));
+    if (subjectId > 0) {
+      filterConditions.push(eq(classes.subjectId, subjectId));
+    }
+
+    const teacherId = parseString(teacher);
+
+    if (teacher !== undefined && !teacherId) {
+      return res.status(400).json({ error: "Invaid teacher ID" });
+    }
+
+    if (teacherId) {
+      filterConditions.push(eq(classes.teacherId, teacherId));
     }
 
     const whereClause =
@@ -98,10 +110,14 @@ router.get("/", async (req, res) => {
       .select({
         ...getColumns(classes),
         subject: { ...getColumns(subjects) },
-        teacher: { ...getColumns(user) },
+        teacher: { 
+          id: user.id,
+          name: user.name,
+          image: user.image,
+        },
       })
       .from(classes)
-      .leftJoin(subjects, eq(subjects.departmentId, subjects.id))
+      .leftJoin(subjects, eq(classes.subjectId, subjects.id))
       .leftJoin(user, eq(classes.teacherId, user.id))
       .where(whereClause)
       .orderBy(desc(classes.createdAt), desc(classes.id))
