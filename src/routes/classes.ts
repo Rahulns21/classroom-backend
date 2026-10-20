@@ -1,6 +1,6 @@
 import express from "express";
 import { db } from "../db";
-import { classes, subjects, user } from "../db/schema";
+import { classes, departments, subjects, user } from "../db/schema";
 import { classSchema } from "../lib/schema";
 import { z } from "zod";
 import { randomBytes } from "node:crypto";
@@ -139,6 +139,34 @@ router.get("/", async (req, res) => {
       error: "Failed to fetch classes",
     });
   }
+});
+
+router.get("/:id", async (req, res) => {
+  const classId = Number(req.params.id);
+
+  if (!Number.isFinite(classId)) return res.status(400).json({
+    error: "No Class found."
+  });
+
+  const [classDetails] = await db.select({
+    ...getColumns(classes),
+    subject: {
+      ...getColumns(subjects)
+    },
+    department: {
+      ...getColumns(departments),
+    },
+    teacher: {
+      ...getColumns(user),
+    }
+  }).from(classes).leftJoin(subjects, eq(classes.subjectId, subjects.id))
+  .leftJoin(user, eq(classes.teacherId, user.id)).leftJoin(departments, eq(subjects.departmentId, departments.id)).where(eq(classes.id, classId));
+
+  if (!classDetails) return res.status(404).json({
+    error: "No class found."
+  });
+
+  return res.status(200).json({ data: classDetails });
 });
 
 export default router;
