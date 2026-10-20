@@ -110,7 +110,7 @@ router.get("/", async (req, res) => {
       .select({
         ...getColumns(classes),
         subject: { ...getColumns(subjects) },
-        teacher: { 
+        teacher: {
           id: user.id,
           name: user.name,
           image: user.image,
@@ -142,31 +142,50 @@ router.get("/", async (req, res) => {
 });
 
 router.get("/:id", async (req, res) => {
-  const classId = Number(req.params.id);
+  const classId = parsePositiveInt(req.params.id, 0);
 
-  if (!Number.isFinite(classId)) return res.status(400).json({
-    error: "No Class found."
-  });
+  if (classId === 0) {
+    return res.status(400).json({
+      error: "Invalid class ID. Must be a positive integer."
+    });
+  }
 
-  const [classDetails] = await db.select({
-    ...getColumns(classes),
-    subject: {
-      ...getColumns(subjects)
-    },
-    department: {
-      ...getColumns(departments),
-    },
-    teacher: {
-      ...getColumns(user),
-    }
-  }).from(classes).leftJoin(subjects, eq(classes.subjectId, subjects.id))
-  .leftJoin(user, eq(classes.teacherId, user.id)).leftJoin(departments, eq(subjects.departmentId, departments.id)).where(eq(classes.id, classId));
+  try {
+    const [classDetails] = await db
+      .select({
+        ...getColumns(classes),
+        subject: {
+          ...getColumns(subjects),
+        },
+        department: {
+          ...getColumns(departments),
+        },
+        teacher: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          image: user.image,
+        },
+      })
+      .from(classes)
+      .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+      .leftJoin(user, eq(classes.teacherId, user.id))
+      .leftJoin(departments, eq(subjects.departmentId, departments.id))
+      .where(eq(classes.id, classId));
 
-  if (!classDetails) return res.status(404).json({
-    error: "No class found."
-  });
+    if (!classDetails)
+      return res.status(404).json({
+        error: "No class found.",
+      });
 
-  return res.status(200).json({ data: classDetails });
+    return res.status(200).json({ data: classDetails });
+  } catch (e) {
+    console.error(`GET /classes/${req.params.id} error:`, e);
+    return res.status(500).json({
+      error: "Internal server error",
+    });
+  }
 });
 
 export default router;
