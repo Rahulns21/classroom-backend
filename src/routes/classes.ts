@@ -1,6 +1,6 @@
 import express from "express";
 import { db } from "../db";
-import { classes, subjects, user } from "../db/schema";
+import { classes, departments, subjects, user } from "../db/schema";
 import { classSchema } from "../lib/schema";
 import { z } from "zod";
 import { randomBytes } from "node:crypto";
@@ -110,7 +110,7 @@ router.get("/", async (req, res) => {
       .select({
         ...getColumns(classes),
         subject: { ...getColumns(subjects) },
-        teacher: { 
+        teacher: {
           id: user.id,
           name: user.name,
           image: user.image,
@@ -137,6 +137,53 @@ router.get("/", async (req, res) => {
     console.error(`GET /classes error: ${e}`);
     return res.status(500).json({
       error: "Failed to fetch classes",
+    });
+  }
+});
+
+router.get("/:id", async (req, res) => {
+  const classId = parsePositiveInt(req.params.id, 0);
+
+  if (classId === 0) {
+    return res.status(400).json({
+      error: "Invalid class ID. Must be a positive integer."
+    });
+  }
+
+  try {
+    const [classDetails] = await db
+      .select({
+        ...getColumns(classes),
+        subject: {
+          ...getColumns(subjects),
+        },
+        department: {
+          ...getColumns(departments),
+        },
+        teacher: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          image: user.image,
+        },
+      })
+      .from(classes)
+      .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+      .leftJoin(user, eq(classes.teacherId, user.id))
+      .leftJoin(departments, eq(subjects.departmentId, departments.id))
+      .where(eq(classes.id, classId));
+
+    if (!classDetails)
+      return res.status(404).json({
+        error: "No class found.",
+      });
+
+    return res.status(200).json({ data: classDetails });
+  } catch (e) {
+    console.error(`GET /classes/${req.params.id} error:`, e);
+    return res.status(500).json({
+      error: "Internal server error",
     });
   }
 });
